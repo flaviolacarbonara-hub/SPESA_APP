@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpesApp – Lista della Spesa</title>
+  <meta name="description" content="Gestisci la lista della spesa per più supermercati in modo semplice e veloce." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    /* ====================================================
+       RESET & BASE
+    ==================================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0e0e0d;
+      color: #f0ede6;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      line-height: 1.55;
+    }
+    button { cursor: pointer; font-family: inherit; border: none; outline: none; background: none; }
+    input { font-family: inherit; outline: none; border: none; background: none; }
+    svg { display: block; flex-shrink: 0; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a28; border-radius: 99px; }
+
+    /* ====================================================
+       VIEW SYSTEM — Spesa view slides in from right
+    ==================================================== */
+    #view-spesa {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: #0e0e0d;
+      transform: translateX(100%);
+      transition: transform 0.42s cubic-bezier(0.77, 0, 0.18, 1);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    #view-spesa.active { transform: translateX(0); }
+
+    /* ====================================================
+       SHARED HEADER
+    ==================================================== */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(14, 14, 13, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .header-row {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 20px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* ====================================================
+       LOGO
+    ==================================================== */
+    .app-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, #1d6ad4 0%, #1240a0 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-words { line-height: 1.15; }
+    .logo-words strong { display: block; font-size: 17px; font-weight: 800; color: #f0ede6; letter-spacing: -0.02em; }
+    .logo-words small { font-size: 10px; font-weight: 500; color: #5a5856; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* ====================================================
+       HEADER CONTROLS
+    ==================================================== */
+    .spacer { flex: 1; }
+
+    .badge {
+      padding: 5px 13px; border-radius: 99px;
+      font-size: 12px; font-weight: 600;
+      background: rgba(255,255,255,0.05);
+      color: #6b6864;
+      transition: background 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .badge.active {
+      background: rgba(29, 106, 212, 0.18);
+      color: #74aff7;
+    }
+
+    .btn-cta {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 20px; border-radius: 12px;
+      background: linear-gradient(135deg, #1d6ad4, #1240a0);
+      color: #fff; font-size: 13px; font-weight: 700;
+      letter-spacing: 0.01em; white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(29,106,212,0.35);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s;
+    }
+    .btn-cta:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(29,106,212,0.45);
+    }
+    .btn-cta:active:not(:disabled) { transform: translateY(0); }
+    .btn-cta:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ====================================================
+       TOOLBAR
+    ==================================================== */
+    .toolbar {
+      max-width: 1120px;
+      margin: 26px auto 0;
+      padding: 0 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .search-wrap { flex: 1; min-width: 200px; position: relative; }
+    .srch-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #5a5856; pointer-events: none; }
+    #search-input {
+      width: 100%; padding: 11px 14px 11px 40px;
+      background: #1a1a18; border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px; color: #f0ede6; font-size: 14px;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    #search-input::placeholder { color: #5a5856; }
+    #search-input:focus { border-color: #1d6ad4; box-shadow: 0 0 0 3px rgba(29,106,212,0.14); }
+
+    .toggle-pill {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; border-radius: 12px;
+      background: #1a1a18; border: 1px solid rgba(255,255,255,0.07);
+      cursor: pointer; user-select: none; white-space: nowrap;
+      transition: border-color 0.18s;
+    }
+    .toggle-pill:hover { border-color: rgba(255,255,255,0.13); }
+    .t-track {
+      width: 38px; height: 20px; border-radius: 99px;
+      background: #2c2c2a; position: relative;
+      transition: background 0.2s; flex-shrink: 0;
+    }
+    .t-track.on { background: #1d6ad4; }
+    .t-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #fff; position: absolute; top: 3px; left: 3px;
+      transition: left 0.2s ease; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .t-track.on .t-thumb { left: 21px; }
+    .toggle-pill span { font-size: 13px; font-weight: 500; color: #a09d96; }
+
+    /* ====================================================
+       SECTION DIVIDER
+    ==================================================== */
+    .section-row {
+      max-width: 1120px; margin: 22px auto 16px; padding: 0 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #5a5856; white-space: nowrap; }
+    .section-line { flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+
+    /* ====================================================
+       GRID
+    ==================================================== */
+    .main-wrap { max-width: 1120px; margin: 0 auto 80px; padding: 0 20px; }
+    #sm-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 18px;
+    }
+
+    /* ====================================================
+       SUPERMARKET CARD
+    ==================================================== */
+    .sm-card {
+      border-radius: 22px; overflow: hidden;
+      background: #191917;
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 6px 30px rgba(0,0,0,0.45);
+      display: flex; flex-direction: column;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      animation: cardIn 0.32s ease both;
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .sm-card:hover { border-color: rgba(255,255,255,0.12); box-shadow: 0 10px 40px rgba(0,0,0,0.55); }
+
+    /* --- CARD HEADER (brand styled) --- */
+    .card-header {
+      padding: 18px 18px 16px;
+      display: flex; align-items: center; gap: 14px;
+      cursor: pointer; position: relative; overflow: hidden;
+      /* brand colors applied via data-brand */
+    }
+    .card-header::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 80% 0%, rgba(255,255,255,0.10), transparent 65%);
+      pointer-events: none;
+    }
+
+    /* Brand color gradients */
+    [data-brand="eurospin"] .card-header { background: linear-gradient(135deg, #0057A8 0%, #003d7a 100%); }
+    [data-brand="lidl"]     .card-header { background: linear-gradient(135deg, #0050AA 0%, #003480 100%); }
+    [data-brand="tigota"]   .card-header { background: linear-gradient(135deg, #00A99D 0%, #007770 100%); }
+    [data-brand="md"]       .card-header { background: linear-gradient(135deg, #003DA5 0%, #00256e 100%); }
+    [data-brand="custom"]   .card-header { background: linear-gradient(135deg, #2e2e2c 0%, #1c1c1a 100%); }
+
+    .card-logo {
+      width: 52px; height: 52px; border-radius: 12px;
+      overflow: hidden; flex-shrink: 0;
+      background: rgba(255,255,255,0.12);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card-logo svg { width: 52px; height: 52px; }
+
+    .card-header-info { flex: 1; min-width: 0; }
+    .card-header-name {
+      font-size: 20px; font-weight: 800; color: #fff;
+      letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .card-header-sub {
+      font-size: 12px; color: rgba(255,255,255,0.55);
+      margin-top: 3px; font-weight: 400;
+    }
+
+    .card-header-btns { display: flex; gap: 5px; position: relative; z-index: 1; }
+    .hdr-btn {
+      width: 30px; height: 30px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.1);
+      transition: background 0.15s, color 0.15s;
+    }
+    .hdr-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+    .hdr-btn.del:hover { background: rgba(220, 50, 50, 0.25); color: #fd7070; }
+    .chevron {
+      color: rgba(255,255,255,0.5);
+      transition: transform 0.3s ease, color 0.15s;
+      flex-shrink: 0; margin-left: 2px;
+    }
+    .chevron.open { transform: rotate(180deg); }
+
+    /* --- CARD BODY (collapsible) --- */
+    .card-body {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.38s cubic-bezier(0.4,0,0.2,1);
+    }
+    .card-body.open { max-height: 9999px; }
+
+    /* Quick add row */
+    .add-row {
+      display: flex; gap: 8px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .add-row input {
+      flex: 1; padding: 9px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; color: #f0ede6; font-size: 13px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .add-row input::placeholder { color: #5a5856; }
+    .add-row input:focus {
+      border-color: rgba(29,106,212,0.5);
+      box-shadow: 0 0 0 2px rgba(29,106,212,0.1);
+    }
+    .btn-add-p {
+      padding: 9px 14px; border-radius: 8px;
+      background: rgba(34,197,94,0.12);
+      color: #4ade80; font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 5px;
+      border: 1px solid rgba(34,197,94,0.2);
+      white-space: nowrap;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-add-p:hover { background: rgba(34,197,94,0.2); transform: translateY(-1px); }
+
+    /* Product list */
+    .prod-list { padding: 6px 0; }
+    .prod-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 15px; border-radius: 8px;
+      transition: background 0.15s, opacity 0.25s;
+      animation: itemIn 0.22s ease both;
+      margin: 1px 6px;
+    }
+    @keyframes itemIn {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .prod-item:hover { background: rgba(255,255,255,0.03); }
+    /* checked = selezionato per la spesa → evidenziato in verde */
+    .prod-item.checked { background: rgba(22,163,74,0.07); }
+
+    .cbox {
+      width: 22px; height: 22px; border-radius: 6px;
+      border: 2px solid rgba(255,255,255,0.16);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .cbox:hover { border-color: rgba(255,255,255,0.3); }
+    .cbox.on { background: #16a34a; border-color: #16a34a; }
+    .cbox-svg { display: none; pointer-events: none; }
+    .cbox.on .cbox-svg { display: block; }
+
+    .prod-name {
+      flex: 1; font-size: 14px; font-weight: 500; color: #f0ede6;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: color 0.2s;
+    }
+    /* nome verde tenue se selezionato */
+    .prod-item.checked .prod-name { color: #86efac; }
+
+    .btn-del-p {
+      width: 26px; height: 26px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #5a5856; opacity: 0;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+    }
+    .prod-item:hover .btn-del-p { opacity: 1; }
+    .btn-del-p:hover { background: rgba(220,50,50,0.12); color: #fd7070; }
+
+    .no-prod { padding: 22px 15px; text-align: center; font-size: 13px; color: #5a5856; }
+
+    /* Card footer */
+    .card-footer {
+      padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.05);
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .footer-stat { font-size: 12px; color: #5a5856; }
+    .footer-stat strong { color: #a09d96; }
+
+    /* Add supermarket button */
+    .btn-new-sm {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 18px; border-radius: 18px; width: 100%;
+      border: 2px dashed rgba(255,255,255,0.09);
+      color: #5a5856; font-size: 14px; font-weight: 500;
+      transition: border-color 0.18s, color 0.18s, background 0.18s;
+    }
+    .btn-new-sm:hover {
+      border-color: rgba(255,255,255,0.18);
+      color: #a09d96; background: rgba(255,255,255,0.02);
+    }
+
+    /* Empty state */
+    .empty-state {
+      grid-column: 1 / -1; text-align: center; padding: 80px 20px;
+    }
+    .empty-emoji { font-size: 64px; margin-bottom: 18px; display: block; opacity: 0.4; }
+    .empty-state h2 { font-size: 22px; color: #a09d96; margin-bottom: 8px; }
+    .empty-state p { font-size: 14px; color: #5a5856; }
+
+    /* ====================================================
+       VIEW 2 — SPESA SCREEN
+    ==================================================== */
+    .spesa-header .header-row { height: 60px; }
+
+    .btn-back {
+      display: flex; align-items: center; gap: 6px;
+      color: #a09d96; font-size: 14px; font-weight: 600;
+      padding: 8px 12px; border-radius: 10px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.05); color: #f0ede6; }
+
+    .spesa-title-area { flex: 1; text-align: center; }
+    .spesa-title { font-size: 15px; font-weight: 700; color: #f0ede6; }
+    .spesa-progress-txt { font-size: 12px; color: #5a5856; margin-top: 1px; }
+
+    .btn-reset {
+      padding: 7px 14px; border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      color: #a09d96; font-size: 12px; font-weight: 600;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-reset:hover { background: rgba(255,255,255,0.09); color: #f0ede6; }
+
+    /* Progress bar */
+    .pbar-wrap {
+      height: 3px; background: rgba(255,255,255,0.06);
+    }
+    .pbar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #1d6ad4, #10b981);
+      border-radius: 99px;
+      transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* Shopping page content */
+    .spesa-content {
+      max-width: 680px; margin: 24px auto 100px; padding: 0 20px;
+    }
+
+    .shop-section {
+      margin-bottom: 20px; border-radius: 22px; overflow: hidden;
+      background: #191917; border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      animation: cardIn 0.28s ease both;
+    }
+    .shop-sec-hdr {
+      padding: 14px 18px;
+      display: flex; align-items: center; gap: 12px;
+      position: relative; overflow: hidden;
+    }
+    .shop-sec-hdr::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 80% 0%, rgba(255,255,255,0.08), transparent 60%);
+      pointer-events: none;
+    }
+    [data-brand="eurospin"] .shop-sec-hdr { background: linear-gradient(135deg, #0057A8, #003d7a); }
+    [data-brand="lidl"]     .shop-sec-hdr { background: linear-gradient(135deg, #0050AA, #003480); }
+    [data-brand="tigota"]   .shop-sec-hdr { background: linear-gradient(135deg, #00A99D, #007770); }
+    [data-brand="md"]       .shop-sec-hdr { background: linear-gradient(135deg, #003DA5, #00256e); }
+    [data-brand="custom"]   .shop-sec-hdr { background: linear-gradient(135deg, #2e2e2c, #1c1c1a); }
+
+    .shop-logo {
+      width: 38px; height: 38px; border-radius: 9px; overflow: hidden;
+      flex-shrink: 0; background: rgba(255,255,255,0.12);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .shop-logo svg { width: 38px; height: 38px; }
+
+    .shop-sec-name { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+    .shop-sec-count { margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 500; }
+
+    .shop-prod {
+      display: flex; align-items: center; gap: 14px;
+      padding: 15px 18px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .shop-prod:hover { background: rgba(255,255,255,0.03); }
+    .shop-prod.done { opacity: 0.35; }
+
+    .shop-cbox {
+      width: 26px; height: 26px; border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.16);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .shop-prod.done .shop-cbox { background: #16a34a; border-color: #16a34a; }
+
+    .shop-prod-name {
+      flex: 1; font-size: 15px; font-weight: 500; color: #f0ede6;
+      transition: color 0.2s, text-decoration 0.15s;
+    }
+    .shop-prod.done .shop-prod-name { text-decoration: line-through; color: #5a5856; }
+
+    /* All done banner */
+    .all-done {
+      text-align: center; padding: 60px 20px;
+    }
+    .all-done-icon { font-size: 76px; display: block; margin-bottom: 18px; animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes popIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .all-done h2 { font-family: 'Playfair Display', serif; font-size: 28px; color: #f0ede6; margin-bottom: 8px; }
+    .all-done p { color: #5a5856; font-size: 15px; }
+
+    /* Empty spesa */
+    .spesa-empty { text-align: center; padding: 80px 20px; }
+    .spesa-empty-icon { font-size: 64px; display: block; margin-bottom: 18px; opacity: 0.45; }
+    .spesa-empty h2 { font-size: 22px; color: #a09d96; margin-bottom: 8px; }
+    .spesa-empty p { font-size: 14px; color: #5a5856; }
+
+    /* ====================================================
+       MODALS
+    ==================================================== */
+    .m-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.22s ease;
+    }
+    .m-overlay.open { opacity: 1; pointer-events: all; }
+    .m-box {
+      background: #1e1e1c;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px; padding: 28px 28px 24px;
+      max-width: 420px; width: 100%;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.8);
+      transform: scale(0.88) translateY(24px);
+      opacity: 0;
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease;
+    }
+    .m-overlay.open .m-box { transform: scale(1) translateY(0); opacity: 1; }
+    .m-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .m-title { font-family: 'Playfair Display', serif; font-size: 21px; font-weight: 700; color: #f0ede6; }
+    .m-close {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: rgba(255,255,255,0.06); color: #a09d96;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .m-close:hover { background: rgba(255,255,255,0.11); }
+    .m-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #a09d96; margin-bottom: 7px; }
+    .m-input {
+      width: 100%; padding: 12px 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 12px; color: #f0ede6; font-size: 14px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .m-input::placeholder { color: #5a5856; }
+    .m-input:focus { border-color: #1d6ad4; box-shadow: 0 0 0 3px rgba(29,106,212,0.12); }
+    .m-err { font-size: 12px; color: #fd7070; margin-top: 7px; display: none; }
+    .m-err.show { display: block; }
+    .m-text { font-size: 15px; color: #a09d96; line-height: 1.6; }
+    .m-text strong { color: #f0ede6; }
+    .m-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+    .btn-cancel-m {
+      padding: 10px 20px; border-radius: 10px;
+      background: rgba(255,255,255,0.05); color: #a09d96;
+      font-size: 14px; font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-cancel-m:hover { background: rgba(255,255,255,0.09); color: #f0ede6; }
+    .btn-ok-m {
+      padding: 10px 22px; border-radius: 10px;
+      background: #1d6ad4; color: #fff;
+      font-size: 14px; font-weight: 600;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-ok-m:hover { background: #1557bb; transform: translateY(-1px); }
+    .btn-ok-m.danger { background: #dc2626; }
+    .btn-ok-m.danger:hover { background: #b91c1c; }
+
+    /* ====================================================
+       TOAST
+    ==================================================== */
+    #toasts {
+      position: fixed; bottom: 24px; right: 20px; z-index: 900;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-radius: 12px;
+      background: #2a2a28; border: 1px solid rgba(255,255,255,0.1);
+      font-size: 13px; font-weight: 500; color: #f0ede6;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+      animation: toastIn 0.3s ease both;
+      max-width: 290px;
+    }
+    .toast.out { animation: toastOut 0.3s ease both; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(16px); } }
+    .t-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .toast.ok .t-dot   { background: #4ade80; }
+    .toast.bad .t-dot  { background: #fd7070; }
+    .toast.info .t-dot { background: #74aff7; }
+
+    /* ====================================================
+       RESPONSIVE
+    ==================================================== */
+    @media (max-width: 640px) {
+      #sm-grid { grid-template-columns: 1fr; }
+      .logo-words small { display: none; }
+      .badge { display: none; }
+      .btn-cta span { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     VIEW 1 — LISTA
+============================================================ -->
+<div id="view-lista">
+
+  <header class="app-header">
+    <div class="header-row">
+      <div class="app-logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+        </div>
+        <div class="logo-words">
+          <strong>SpesApp</strong>
+          <small>Lista della Spesa</small>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <span class="badge" id="prod-badge">Lista vuota</span>
+      <button class="btn-cta" id="btn-goto-spesa" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        <span>Vai a fare la spesa</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg class="srch-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="search-input" placeholder="Cerca prodotto…" autocomplete="off" />
+    </div>
+    <label class="toggle-pill">
+      <div class="t-track" id="t-track"><div class="t-thumb"></div></div>
+      <span>Nascondi acquistati</span>
+    </label>
+  </div>
+
+  <div class="section-row">
+    <span class="section-label">I tuoi supermercati</span>
+    <div class="section-line"></div>
+    <span class="section-label" id="sm-count-lbl">—</span>
+  </div>
+
+  <div class="main-wrap">
+    <div id="sm-grid"></div>
+  </div>
+</div><!-- /view-lista -->
+
+
+<!-- ============================================================
+     VIEW 2 — SPESA
+============================================================ -->
+<div id="view-spesa">
+  <header class="app-header spesa-header">
+    <div class="header-row">
+      <button class="btn-back" id="btn-back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Lista
+      </button>
+      <div class="spesa-title-area">
+        <div class="spesa-title">Fai la spesa 🛒</div>
+        <div class="spesa-progress-txt" id="spesa-prog-txt">Caricamento…</div>
+      </div>
+      <button class="btn-reset" id="btn-reset">Reset acquisti</button>
+    </div>
+    <div class="pbar-wrap">
+      <div class="pbar-fill" id="pbar" style="width:0%"></div>
+    </div>
+  </header>
+  <div class="spesa-content" id="shopping-list"></div>
+</div><!-- /view-spesa -->
+
+
+<!-- ============================================================
+     MODAL — Add / Rename Supermarket
+============================================================ -->
+<div class="m-overlay" id="modal-sm" role="dialog" aria-modal="true" aria-labelledby="msm-title">
+  <div class="m-box">
+    <div class="m-row">
+      <h2 class="m-title" id="msm-title">Nuovo supermercato</h2>
+      <button class="m-close" data-close="modal-sm" aria-label="Chiudi">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <label class="m-label" for="msm-input">Nome supermercato</label>
+    <input class="m-input" id="msm-input" type="text" placeholder="es. Carrefour, Esselunga…" maxlength="60" />
+    <p class="m-err" id="msm-err"></p>
+    <div class="m-btns">
+      <button class="btn-cancel-m" data-close="modal-sm">Annulla</button>
+      <button class="btn-ok-m" id="msm-ok">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL — Delete Supermarket
+============================================================ -->
+<div class="m-overlay" id="modal-delsm" role="dialog" aria-modal="true" aria-labelledby="mdel-title">
+  <div class="m-box">
+    <div class="m-row">
+      <h2 class="m-title" id="mdel-title">Elimina supermercato</h2>
+      <button class="m-close" data-close="modal-delsm" aria-label="Chiudi">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <p class="m-text" id="mdel-text"></p>
+    <div class="m-btns">
+      <button class="btn-cancel-m" data-close="modal-delsm">Annulla</button>
+      <button class="btn-ok-m danger" id="mdel-ok">Elimina</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div id="toasts"></div>
+
+
+<!-- ============================================================
+     SCRIPT
+============================================================ -->
+<script>
+/* ============================================================
+   BRAND CONFIG (colors already in CSS, logos as SVG strings)
+============================================================ */
+const BRAND_LOGOS = {
+
+  eurospin: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="80" height="80" rx="14" fill="#0057A8"/>
+    <!-- 12 yellow stars -->
+    <text x="40"   y="8.5"  text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="56"   y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="67.5" y="24"   text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="71.5" y="40"   text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="67.5" y="56"   text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="56"   y="67.5" text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="40"   y="71.5" text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="24"   y="67.5" text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="12.5" y="56"   text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="8.5"  y="40"   text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="12.5" y="24"   text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <text x="24"   y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#F5C400" font-size="7" font-family="Arial">★</text>
+    <!-- EURO text -->
+    <text x="40" y="34" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="13" font-weight="800" font-family="Arial, sans-serif" letter-spacing="0.5">EURO</text>
+    <!-- Spin text -->
+    <text x="40" y="52" text-anchor="middle" dominant-baseline="middle" font-size="17" font-style="italic" font-weight="700" font-family="Arial, sans-serif">
+      <tspan fill="#F5C400">Sp</tspan><tspan fill="#fff">in</tspan>
+    </text>
+  </svg>`,
+
+  lidl: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="80" height="80" fill="#0050AA"/>
+    <!-- Outer red ring -->
+    <circle cx="40" cy="40" r="36" fill="#CC1010"/>
+    <!-- Yellow inner circle -->
+    <circle cx="40" cy="40" r="30" fill="#FFD700"/>
+    <!-- Red bottom half -->
+    <path d="M10 40 a30 30 0 0 0 60 0 Z" fill="#CC1010"/>
+    <!-- Lidl text in blue -->
+    <text x="40" y="32" text-anchor="middle" dominant-baseline="middle" fill="#0050AA" font-size="22" font-weight="900" font-family="Arial, sans-serif" letter-spacing="-0.5">Lidl</text>
+  </svg>`,
+
+  tigota: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="80" height="80" rx="14" fill="#00A99D"/>
+    <!-- Decorative circles (brand motif) -->
+    <circle cx="66" cy="62" r="24" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+    <circle cx="66" cy="62" r="14" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+    <circle cx="16" cy="18" r="12" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="1.5"/>
+    <!-- Brand text -->
+    <text x="38" y="38" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="11" font-weight="700" font-family="Arial, sans-serif" letter-spacing="1.5">TiGOTÀ</text>
+    <!-- Red dot on 'i' approximate position -->
+    <circle cx="27.5" cy="29" r="2.2" fill="#E31E26"/>
+  </svg>`,
+
+  md: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="80" height="80" rx="14" fill="#003DA5"/>
+    <!-- Yellow film strip center -->
+    <rect x="22" y="0" width="36" height="80" fill="#FFD700"/>
+    <!-- Film perforation top -->
+    <rect x="25" y="4"  width="7" height="5" rx="1" fill="#003DA5"/>
+    <rect x="34" y="4"  width="7" height="5" rx="1" fill="#003DA5"/>
+    <rect x="43" y="4"  width="7" height="5" rx="1" fill="#003DA5"/>
+    <!-- Film perforation bottom -->
+    <rect x="25" y="71" width="7" height="5" rx="1" fill="#003DA5"/>
+    <rect x="34" y="71" width="7" height="5" rx="1" fill="#003DA5"/>
+    <rect x="43" y="71" width="7" height="5" rx="1" fill="#003DA5"/>
+    <!-- MD text in red -->
+    <text x="40" y="43" text-anchor="middle" dominant-baseline="middle" fill="#E31E26" font-size="28" font-weight="900" font-family="Arial, sans-serif">MD</text>
+    <!-- Italian flag mini -->
+    <rect x="29.5" y="54" width="4.5" height="6" fill="#009246"/>
+    <rect x="34"   y="54" width="4.5" height="6" fill="#fff"/>
+    <rect x="38.5" y="54" width="4.5" height="6" fill="#CE2B37"/>
+  </svg>`,
+
+  custom: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="80" height="80" rx="14" fill="#2e2e2c"/>
+    <text x="40" y="44" text-anchor="middle" dominant-baseline="middle" fill="#a09d96" font-size="36" font-family="Arial, sans-serif">🏪</text>
+  </svg>`
+};
+
+const BRAND_ICONS = {
+  eurospin: '🔵',
+  lidl:     '🟡',
+  tigota:   '🩵',
+  md:       '🎞',
+  custom:   '🏪'
+};
+
+/* ============================================================
+   STATE
+============================================================ */
+const STORAGE_KEY = 'spesapp_v4';
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+/* Default data — 4 brand supermarkets con lista completa prodotti */
+function makeDefaults() {
+  return {
+    [uid()]: {
+      name: 'Lidl', brand: 'lidl', collapsed: false,
+      products: [
+        { id: uid(), name: 'Arachidi', checked: false },
+        { id: uid(), name: 'Caffè', checked: false },
+        { id: uid(), name: 'Gomme', checked: false },
+        { id: uid(), name: 'Spugne', checked: false },
+      ]
+    },
+    [uid()]: {
+      name: 'MD', brand: 'md', collapsed: false,
+      products: [
+        { id: uid(), name: 'Nutella', checked: false },
+        { id: uid(), name: 'Sugo alla siciliana', checked: false },
+        { id: uid(), name: 'Tortillas', checked: false },
+        { id: uid(), name: 'Maddalene', checked: false },
+        { id: uid(), name: 'Mostaccioli', checked: false },
+      ]
+    },
+    [uid()]: {
+      name: 'EuroSpin', brand: 'eurospin', collapsed: false,
+      products: [
+        { id: uid(), name: 'Mentine', checked: false },
+        { id: uid(), name: 'Acqua', checked: false },
+        { id: uid(), name: 'Acqua piccola', checked: false },
+        { id: uid(), name: 'Acqua frizzante', checked: false },
+        { id: uid(), name: 'Paninetti', checked: false },
+        { id: uid(), name: 'Pan grattato', checked: false },
+        { id: uid(), name: 'Pinsa', checked: false },
+        { id: uid(), name: 'Pucce', checked: false },
+        { id: uid(), name: 'Quadrotti', checked: false },
+        { id: uid(), name: 'Piadine', checked: false },
+        { id: uid(), name: 'Cornetti', checked: false },
+        { id: uid(), name: 'Ciambella Flavio', checked: false },
+        { id: uid(), name: 'Treccia dura', checked: false },
+        { id: uid(), name: 'Pasta fresca', checked: false },
+        { id: uid(), name: 'Speck', checked: false },
+        { id: uid(), name: 'Speck a striscioline', checked: false },
+        { id: uid(), name: 'Mortadella', checked: false },
+        { id: uid(), name: 'Cotto', checked: false },
+        { id: uid(), name: 'Ventricina', checked: false },
+        { id: uid(), name: 'Salamino', checked: false },
+        { id: uid(), name: 'Pancetta a cubetti', checked: false },
+        { id: uid(), name: 'Bacon', checked: false },
+        { id: uid(), name: 'Parmigiano', checked: false },
+        { id: uid(), name: 'Formaggio in busta', checked: false },
+        { id: uid(), name: 'Formaggio a fette', checked: false },
+        { id: uid(), name: 'Sottilette', checked: false },
+        { id: uid(), name: 'Sottilette cheddar', checked: false },
+        { id: uid(), name: 'Formaggio spalmabile', checked: false },
+        { id: uid(), name: 'Galbanino face', checked: false },
+        { id: uid(), name: 'Burro', checked: false },
+        { id: uid(), name: 'Yogurt', checked: false },
+        { id: uid(), name: 'Coppa con panna', checked: false },
+        { id: uid(), name: 'Coppette gelato', checked: false },
+        { id: uid(), name: 'Tortini ripieni', checked: false },
+        { id: uid(), name: 'Gelati', checked: false },
+        { id: uid(), name: 'Gelati al cocco', checked: false },
+        { id: uid(), name: 'Gelati biscotto due gusti', checked: false },
+        { id: uid(), name: 'Cotolette di pollo', checked: false },
+        { id: uid(), name: 'Bocconcini di pollo', checked: false },
+        { id: uid(), name: 'Panzerottini', checked: false },
+        { id: uid(), name: 'Pizze surgelate', checked: false },
+        { id: uid(), name: 'Patate da forno', checked: false },
+        { id: uid(), name: 'Crocchette di patate', checked: false },
+        { id: uid(), name: 'Pesce hamburger', checked: false },
+        { id: uid(), name: 'Bastoncini verdure', checked: false },
+        { id: uid(), name: 'Sugo con vongole', checked: false },
+        { id: uid(), name: 'Prezzemolo surgelato', checked: false },
+        { id: uid(), name: 'Cipolla surgelata', checked: false },
+        { id: uid(), name: 'Polpette surgelate', checked: false },
+        { id: uid(), name: 'Noci', checked: false },
+        { id: uid(), name: 'Mandorle', checked: false },
+        { id: uid(), name: 'Anacardi', checked: false },
+        { id: uid(), name: 'Uova', checked: false },
+        { id: uid(), name: 'Latte', checked: false },
+        { id: uid(), name: 'Succhi', checked: false },
+        { id: uid(), name: 'Cereali', checked: false },
+        { id: uid(), name: 'Musley', checked: false },
+        { id: uid(), name: 'Ketchup', checked: false },
+        { id: uid(), name: 'Maionese', checked: false },
+        { id: uid(), name: 'Sale grosso', checked: false },
+        { id: uid(), name: 'Capperi', checked: false },
+        { id: uid(), name: 'Passata di pomodoro', checked: false },
+        { id: uid(), name: 'Farina', checked: false },
+        { id: uid(), name: 'Frise', checked: false },
+        { id: uid(), name: 'Taralli', checked: false },
+        { id: uid(), name: 'Salatini', checked: false },
+        { id: uid(), name: 'Grissini', checked: false },
+        { id: uid(), name: 'Pan bauletto', checked: false },
+        { id: uid(), name: 'Pane tramezzino', checked: false },
+        { id: uid(), name: 'Panini hot dog', checked: false },
+        { id: uid(), name: 'Panini con sesamo', checked: false },
+        { id: uid(), name: 'Olio di semi', checked: false },
+        { id: uid(), name: 'Besciamella', checked: false },
+        { id: uid(), name: 'Panna piccola', checked: false },
+        { id: uid(), name: 'Panna per dolci', checked: false },
+        { id: uid(), name: 'Amido di mais/fecola', checked: false },
+        { id: uid(), name: 'Sfogliatine', checked: false },
+        { id: uid(), name: 'Ritz fake', checked: false },
+        { id: uid(), name: 'Patatine o stuzzicherie', checked: false },
+        { id: uid(), name: 'Barretta cioccolato latte con nocciole e senza', checked: false },
+        { id: uid(), name: 'Kinder cereali fake', checked: false },
+        { id: uid(), name: 'Barrette', checked: false },
+        { id: uid(), name: 'Cornetti vuoti', checked: false },
+        { id: uid(), name: 'Sfogliatelle con cioccolato', checked: false },
+        { id: uid(), name: 'Rollini', checked: false },
+        { id: uid(), name: 'Brioscine varie', checked: false },
+        { id: uid(), name: 'Prezel', checked: false },
+        { id: uid(), name: 'Canestrelli', checked: false },
+        { id: uid(), name: 'Biscotti al cioccolato con cioccolato', checked: false },
+        { id: uid(), name: 'Biscotti orociock fake', checked: false },
+        { id: uid(), name: 'Biscotti tre gusti', checked: false },
+        { id: uid(), name: 'Cio bar fake', checked: false },
+        { id: uid(), name: 'Grissini con Nutella', checked: false },
+        { id: uid(), name: 'Basi focacce varie', checked: false },
+        { id: uid(), name: 'Petto di pollo', checked: false },
+        { id: uid(), name: 'Fettine', checked: false },
+        { id: uid(), name: 'Bombette', checked: false },
+        { id: uid(), name: 'Macinato', checked: false },
+        { id: uid(), name: 'Hamburger', checked: false },
+        { id: uid(), name: 'Salsiccia', checked: false },
+        { id: uid(), name: 'Cannelloni o Lasagne', checked: false },
+        { id: uid(), name: 'Pappardelle o Linguine', checked: false },
+        { id: uid(), name: 'Bicarbonato', checked: false },
+        { id: uid(), name: 'Tonno', checked: false },
+        { id: uid(), name: 'Fagioli', checked: false },
+        { id: uid(), name: 'Lenticchie', checked: false },
+        { id: uid(), name: 'Ceci', checked: false },
+        { id: uid(), name: 'Fave', checked: false },
+        { id: uid(), name: 'Riso', checked: false },
+        { id: uid(), name: 'Rigatoni', checked: false },
+        { id: uid(), name: 'Spaghetti', checked: false },
+        { id: uid(), name: 'Penne rigate', checked: false },
+        { id: uid(), name: 'Fusilli', checked: false },
+        { id: uid(), name: 'Farfalle', checked: false },
+        { id: uid(), name: 'Pastina', checked: false },
+        { id: uid(), name: 'Dado vegetale', checked: false },
+        { id: uid(), name: 'Olive nere leccino', checked: false },
+        { id: uid(), name: 'Olive nere', checked: false },
+        { id: uid(), name: 'Olive verdi', checked: false },
+        { id: uid(), name: 'Mais', checked: false },
+        { id: uid(), name: 'Condiriso Emmental Wuster', checked: false },
+        { id: uid(), name: 'Zafferano', checked: false },
+        { id: uid(), name: 'Zucchero a velo', checked: false },
+        { id: uid(), name: 'Vanillina', checked: false },
+        { id: uid(), name: 'Lievito per dolci', checked: false },
+        { id: uid(), name: 'Arachidi ricoperti di cioccolato', checked: false },
+        { id: uid(), name: 'Biscotti petit', checked: false },
+        { id: uid(), name: 'Biscotti', checked: false },
+        { id: uid(), name: 'Basilico fresco', checked: false },
+        { id: uid(), name: 'Rosmarino', checked: false },
+        { id: uid(), name: 'Funghi surgelati', checked: false },
+        { id: uid(), name: 'Bietola', checked: false },
+        { id: uid(), name: 'Cicoria', checked: false },
+        { id: uid(), name: 'Zucchine', checked: false },
+        { id: uid(), name: 'Melanzane', checked: false },
+        { id: uid(), name: 'Peperoni', checked: false },
+        { id: uid(), name: 'Pere', checked: false },
+        { id: uid(), name: 'Mele', checked: false },
+        { id: uid(), name: 'Banane', checked: false },
+        { id: uid(), name: 'Carote', checked: false },
+        { id: uid(), name: 'Pomodori', checked: false },
+        { id: uid(), name: 'Insalata', checked: false },
+        { id: uid(), name: 'Patate sacco', checked: false },
+      ]
+    },
+    [uid()]: {
+      name: 'Tigotà', brand: 'tigota', collapsed: false,
+      products: [
+        { id: uid(), name: 'Cerotti nasali', checked: false },
+        { id: uid(), name: 'Colore castano chiaro naturale', checked: false },
+        { id: uid(), name: 'Gomma magica', checked: false },
+        { id: uid(), name: 'Salviette profumate per asciugatrice', checked: false },
+        { id: uid(), name: 'Detersivo liquido lavatrice', checked: false },
+        { id: uid(), name: 'Detersivo liquido lavatrice disinfettante', checked: false },
+        { id: uid(), name: 'Tabs disinfettante', checked: false },
+        { id: uid(), name: 'Tabs lavatrice', checked: false },
+        { id: uid(), name: 'Tabs lavastoviglie', checked: false },
+        { id: uid(), name: 'Cura lavastoviglie', checked: false },
+        { id: uid(), name: 'Guanti', checked: false },
+        { id: uid(), name: 'Bagnoschiuma piccolo', checked: false },
+        { id: uid(), name: 'Bagnoschiuma grande bianco', checked: false },
+        { id: uid(), name: 'Bastoncini orecchie', checked: false },
+        { id: uid(), name: 'Sciogli calcare doccia', checked: false },
+        { id: uid(), name: 'Acchiappa colore', checked: false },
+        { id: uid(), name: 'Sgrassatore risolvo', checked: false },
+        { id: uid(), name: 'Sgrassatore disinfettante', checked: false },
+        { id: uid(), name: 'Wc candeggina', checked: false },
+        { id: uid(), name: 'Sapone mani', checked: false },
+        { id: uid(), name: 'Ammorbidente', checked: false },
+        { id: uid(), name: 'Detersivo pavimenti', checked: false },
+        { id: uid(), name: 'Stracci piccoli', checked: false },
+        { id: uid(), name: 'Salviette igienizzanti', checked: false },
+        { id: uid(), name: 'Salviettine', checked: false },
+        { id: uid(), name: 'Carta igienica', checked: false },
+        { id: uid(), name: 'Fazzoletti', checked: false },
+        { id: uid(), name: 'Rotoloni', checked: false },
+        { id: uid(), name: 'Tovaglioli', checked: false },
+        { id: uid(), name: 'Carta da forno', checked: false },
+        { id: uid(), name: 'Alluminio', checked: false },
+        { id: uid(), name: 'Contenitori in alluminio grandi e piccoli', checked: false },
+        { id: uid(), name: 'Buste spazzatura medie', checked: false },
+        { id: uid(), name: 'Buste spazzatura grandi', checked: false },
+        { id: uid(), name: 'Spray deo ambienti', checked: false },
+        { id: uid(), name: 'Swiffer', checked: false },
+        { id: uid(), name: 'Swiffer detergenti', checked: false },
+        { id: uid(), name: 'Spugna Flavio', checked: false },
+        { id: uid(), name: 'Shampoo', checked: false },
+        { id: uid(), name: 'Deo borotalco Flavio', checked: false },
+        { id: uid(), name: 'Deo Dove stick', checked: false },
+        { id: uid(), name: 'Bifasico', checked: false },
+        { id: uid(), name: 'Salvaslip', checked: false },
+        { id: uid(), name: 'Assorbenti', checked: false },
+        { id: uid(), name: 'Detergente intimo', checked: false },
+        { id: uid(), name: 'Buste freezer medie', checked: false },
+        { id: uid(), name: 'Pirottini grandi', checked: false },
+        { id: uid(), name: 'Carta gommata', checked: false },
+        { id: uid(), name: 'Piatti di plastica grandi piani', checked: false },
+        { id: uid(), name: 'Deo armadi', checked: false },
+        { id: uid(), name: 'Deo cassetti', checked: false },
+        { id: uid(), name: 'Spray anti zanzare', checked: false },
+        { id: uid(), name: 'Crema dopo sole', checked: false },
+        { id: uid(), name: 'Scovolini (gum 07)', checked: false },
+        { id: uid(), name: 'Dentifricio', checked: false },
+        { id: uid(), name: 'Collutorio', checked: false },
+        { id: uid(), name: 'Spazzolini', checked: false },
+        { id: uid(), name: 'Crema viso', checked: false },
+        { id: uid(), name: 'Crema mani', checked: false },
+        { id: uid(), name: 'Crema corpo', checked: false },
+        { id: uid(), name: 'Dischetti trucco', checked: false },
+        { id: uid(), name: 'Lamette', checked: false },
+        { id: uid(), name: 'Spray ricrescita', checked: false },
+        { id: uid(), name: 'Cristalli liquidi', checked: false },
+        { id: uid(), name: 'Pennello fondotinta', checked: false },
+        { id: uid(), name: 'Fondotinta', checked: false },
+      ]
+    }
+  };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+let state = loadState() || makeDefaults();
+
+/* ============================================================
+   SEARCH / FILTER STATE
+============================================================ */
+let searchQ    = '';
+let hideChecked = false;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function totalProducts() {
+  return Object.values(state).reduce((s, sm) => s + sm.products.length, 0);
+}
+
+function brandOf(sm) {
+  return sm.brand || 'custom';
+}
+
+function logoSvg(brand) {
+  return BRAND_LOGOS[brand] || BRAND_LOGOS.custom;
+}
+
+/* ============================================================
+   RENDER — LISTA VIEW
+============================================================ */
+function render() {
+  renderGrid();
+  updateBadge();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('sm-grid');
+  const q    = searchQ.toLowerCase().trim();
+  const smEntries = Object.entries(state);
+
+  // Count label
+  const cnt = smEntries.length;
+  document.getElementById('sm-count-lbl').textContent =
+    cnt === 0 ? '—' : cnt + (cnt === 1 ? ' negozio' : ' negozi');
+
+  if (cnt === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-emoji">🛒</span>
+        <h2>Nessun supermercato</h2>
+        <p>Aggiungi il primo usando il pulsante in basso.</p>
+      </div>
+      <button class="btn-new-sm" id="btn-new-sm-inline">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Aggiungi supermercato
+      </button>`;
+    document.getElementById('btn-new-sm-inline').addEventListener('click', openNewSm);
+    return;
+  }
+
+  let html = '';
+  let anyVisible = false;
+
+  smEntries.forEach(([smId, sm]) => {
+    const brand = brandOf(sm);
+
+    // Filter products
+    let prods = sm.products.filter(p => {
+      const matchQ    = !q || p.name.toLowerCase().includes(q);
+      const matchHide = !hideChecked || !p.checked;
+      return matchQ && matchHide;
+    });
+
+    if (q && prods.length === 0) return;
+    anyVisible = true;
+
+    const isOpen  = !sm.collapsed;
+    const total   = sm.products.length;
+    const checked = sm.products.filter(p => p.checked).length;
+
+    /* Product items */
+    let prodsHtml = prods.length > 0
+      ? prods.map(p => `
+          <div class="prod-item${p.checked ? ' checked' : ''}" data-pid="${p.id}" data-smid="${smId}">
+            <div class="cbox${p.checked ? ' on' : ''}" data-act="toggle" data-pid="${p.id}" data-smid="${smId}" role="checkbox" aria-checked="${p.checked}" tabindex="0">
+              <svg class="cbox-svg" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="2 6 5 9 10 3"/></svg>
+            </div>
+            <span class="prod-name">${esc(p.name)}</span>
+            <button class="btn-del-p" data-act="del-prod" data-pid="${p.id}" data-smid="${smId}" aria-label="Elimina ${esc(p.name)}" title="Elimina">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>`)
+        .join('')
+      : `<div class="no-prod">${q ? 'Nessun prodotto trovato.' : 'Nessun prodotto. Aggiungine uno!'}</div>`;
+
+    html += `
+      <div class="sm-card" data-brand="${brand}" id="card-${smId}">
+        <div class="card-header" data-act="toggle-card" data-smid="${smId}" role="button" aria-expanded="${isOpen}" tabindex="0">
+          <div class="card-logo">${logoSvg(brand)}</div>
+          <div class="card-header-info">
+            <div class="card-header-name">${esc(sm.name)}</div>
+            <div class="card-header-sub">${total} prodott${total === 1 ? 'o' : 'i'} · <span style="color:#86efac">${checked} selezionat${checked === 1 ? 'o' : 'i'}</span></div>
+          </div>
+          <div class="card-header-btns">
+            <button class="hdr-btn" data-act="edit-sm" data-smid="${smId}" title="Rinomina" aria-label="Rinomina ${esc(sm.name)}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+            </button>
+            <button class="hdr-btn del" data-act="del-sm" data-smid="${smId}" title="Elimina" aria-label="Elimina ${esc(sm.name)}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
+          <svg class="chevron${isOpen ? ' open' : ''}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <div class="card-body${isOpen ? ' open' : ''}">
+          <!-- Quick add -->
+          <div class="add-row">
+            <input type="text" class="qname" placeholder="Aggiungi prodotto…" data-smid="${smId}" maxlength="80" aria-label="Nome prodotto" />
+            <button class="btn-add-p" data-act="add-prod" data-smid="${smId}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Aggiungi
+            </button>
+          </div>
+          <!-- Products -->
+          <div class="prod-list">${prodsHtml}</div>
+        </div>
+
+        <div class="card-footer">
+          <span class="footer-stat"><strong>${total - checked}</strong> non selezionati</span>
+          <span class="footer-stat" style="color:#4ade80"><strong>${checked}</strong> nel carrello 🛒</span>
+        </div>
+      </div>`;
+  });
+
+  /* Add new SM button at the end */
+  html += `
+    <button class="btn-new-sm" id="btn-new-sm-inline">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Aggiungi supermercato
+    </button>`;
+
+  if (!anyVisible && q) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-emoji">🔍</span>
+        <h2>Nessun risultato</h2>
+        <p>Nessun prodotto trovato per "${esc(q)}".</p>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = html;
+  document.getElementById('btn-new-sm-inline')?.addEventListener('click', openNewSm);
+}
+
+/* ============================================================
+   BADGE + CTA BUTTON
+============================================================ */
+function updateBadge() {
+  /* Il badge mostra quanti prodotti sono stati SELEZIONATI (checked) */
+  const selected = Object.values(state).reduce((s, sm) => s + sm.products.filter(p => p.checked).length, 0);
+  const badge = document.getElementById('prod-badge');
+  const btn   = document.getElementById('btn-goto-spesa');
+  if (selected === 0) {
+    badge.textContent = 'Nessun prodotto selezionato';
+    badge.classList.remove('active');
+    btn.disabled = true;
+  } else {
+    badge.textContent = selected + (selected === 1 ? ' prodotto nel carrello' : ' prodotti nel carrello');
+    badge.classList.add('active');
+    btn.disabled = false;
+  }
+}
+
+/* ============================================================
+   RENDER — SPESA VIEW
+============================================================ */
+function renderSpesa() {
+  const el = document.getElementById('shopping-list');
+
+  /* Solo i supermercati con almeno un prodotto SELEZIONATO (checked) */
+  const smEntries = Object.entries(state).filter(([, sm]) => sm.products.some(p => p.checked));
+
+  if (smEntries.length === 0) {
+    el.innerHTML = `
+      <div class="spesa-empty">
+        <span class="spesa-empty-icon">☑️</span>
+        <h2>Nessun prodotto selezionato</h2>
+        <p>Torna alla lista e spunta i prodotti che vuoi acquistare.</p>
+      </div>`;
+    updateSpesaProgress();
+    return;
+  }
+
+  /* Tutti i prodotti selezionati */
+  const allSelected = smEntries.flatMap(([, sm]) => sm.products.filter(p => p.checked));
+  const allPicked   = allSelected.every(p => p.picked);
+
+  /* Banner «tutto preso» */
+  if (allPicked && allSelected.length > 0) {
+    el.innerHTML = `
+      <div class="all-done">
+        <span class="all-done-icon">🎉</span>
+        <h2>Spesa completata!</h2>
+        <p>Hai preso tutto! Premi "Reset" per riiniziare il giro.</p>
+      </div>`;
+    updateSpesaProgress();
+    return;
+  }
+
+  let html = '';
+  smEntries.forEach(([smId, sm]) => {
+    const brand      = brandOf(sm);
+    /* Mostra solo i prodotti selezionati */
+    const prods      = sm.products.filter(p => p.checked);
+    const pickedCount = prods.filter(p => p.picked).length;
+
+    const prodsHtml = prods.map(p => `
+      <div class="shop-prod${p.picked ? ' done' : ''}" data-act="shop-toggle" data-pid="${p.id}" data-smid="${smId}" role="checkbox" aria-checked="${!!p.picked}" tabindex="0">
+        <div class="shop-cbox">
+          ${p.picked ? `<svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="2 6 5 9 10 3"/></svg>` : ''}
+        </div>
+        <span class="shop-prod-name">${esc(p.name)}</span>
+      </div>`).join('');
+
+    html += `
+      <div class="shop-section" data-brand="${brand}">
+        <div class="shop-sec-hdr">
+          <div class="shop-logo">${logoSvg(brand)}</div>
+          <span class="shop-sec-name">${esc(sm.name)}</span>
+          <span class="shop-sec-count">${pickedCount}/${prods.length}</span>
+        </div>
+        ${prodsHtml}
+      </div>`;
+  });
+
+  el.innerHTML = html;
+  updateSpesaProgress();
+}
+
+function updateSpesaProgress() {
+  /* Progresso = quanti dei prodotti SELEZIONATI sono stati presi (picked) */
+  const selected = Object.values(state).flatMap(sm => sm.products.filter(p => p.checked));
+  const total    = selected.length;
+  const picked   = selected.filter(p => p.picked).length;
+  const pct      = total > 0 ? (picked / total) * 100 : 0;
+
+  document.getElementById('pbar').style.width = pct + '%';
+  document.getElementById('spesa-prog-txt').textContent =
+    total === 0 ? 'Nessun prodotto' : `${picked} di ${total} presi`;
+}
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+document.getElementById('btn-goto-spesa').addEventListener('click', function() {
+  if (this.disabled) return;
+  renderSpesa();
+  document.getElementById('view-spesa').classList.add('active');
+  document.body.style.overflow = 'hidden'; // prevent bg scroll
+  setTimeout(() => document.body.style.overflow = '', 500);
+});
+
+document.getElementById('btn-back').addEventListener('click', function() {
+  document.getElementById('view-spesa').classList.remove('active');
+  render(); // re-render lista in case shopping changed state
+});
+
+document.getElementById('btn-reset').addEventListener('click', function() {
+  /* Reset solo il campo «picked» — i prodotti restano selezionati */
+  Object.values(state).forEach(sm => sm.products.forEach(p => p.picked = false));
+  saveState();
+  renderSpesa();
+  toast('↩ Segni di presa azzerati', 'info');
+});
+
+/* ============================================================
+   EVENT DELEGATION — GRID (lista view)
+============================================================ */
+document.getElementById('sm-grid').addEventListener('click', function(e) {
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
+  const act  = t.dataset.act;
+  const smid = t.dataset.smid;
+  const pid  = t.dataset.pid;
+
+  e.stopPropagation();
+
+  if (act === 'toggle-card') {
+    state[smid].collapsed = !state[smid].collapsed;
+    saveState(); render(); return;
+  }
+  if (act === 'edit-sm')   { openEditSm(smid); return; }
+  if (act === 'del-sm')    { openDelSm(smid);  return; }
+  if (act === 'toggle')    { toggleProduct(smid, pid); return; }
+  if (act === 'del-prod')  { deleteProduct(smid, pid); return; }
+  if (act === 'add-prod')  { addProductQuick(smid);    return; }
+});
+
+/* Keyboard on grid */
+document.getElementById('sm-grid').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    const t = e.target.closest('[data-act]');
+    if (!t) return;
+    if (t.classList.contains('qname')) {
+      addProductQuick(t.dataset.smid, t.closest('.add-row'));
+    } else {
+      t.click();
+    }
+  }
+  if (e.key === ' ' && e.target.classList.contains('cbox')) {
+    e.preventDefault(); e.target.click();
+  }
+});
+
+/* ============================================================
+   EVENT DELEGATION — SHOPPING VIEW
+============================================================ */
+document.getElementById('shopping-list').addEventListener('click', function(e) {
+  const t = e.target.closest('[data-act="shop-toggle"]');
+  if (!t) return;
+  const smid = t.dataset.smid;
+  const pid  = t.dataset.pid;
+  /* Nel carrello toggleamo «picked» (preso in negozio), non «checked» */
+  pickProduct(smid, pid);
+});
+
+document.getElementById('shopping-list').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    const t = e.target.closest('[data-act="shop-toggle"]');
+    if (t) { e.preventDefault(); t.click(); }
+  }
+});
+
+/* ============================================================
+   PRODUCT ACTIONS
+============================================================ */
+function addProductQuick(smid, row) {
+  if (!row) {
+    const card = document.getElementById('card-' + smid);
+    if (!card) return;
+    row = card.querySelector('.add-row');
+  }
+  const inp  = row.querySelector('.qname');
+  const name = inp.value.trim();
+
+  if (!name) {
+    inp.style.borderColor = 'rgba(253,112,112,0.6)';
+    setTimeout(() => inp.style.borderColor = '', 1500);
+    inp.focus();
+    toast('⚠ Inserisci il nome del prodotto', 'bad');
+    return;
+  }
+
+  state[smid].products.push({ id: uid(), name, checked: false, picked: false });
+  saveState();
+  render();
+  toast(`✓ "${name}" aggiunto`, 'ok');
+}
+
+/* Seleziona/deseleziona un prodotto nella LISTA (lo aggiunge/rimuove dal carrello) */
+function toggleProduct(smid, pid) {
+  const prod = state[smid]?.products.find(p => p.id === pid);
+  if (!prod) return;
+  prod.checked = !prod.checked;
+  /* Se si deseleziona, azzera anche picked */
+  if (!prod.checked) prod.picked = false;
+  saveState();
+  render();
+  toast(prod.checked ? '🛒 Aggiunto al carrello' : '↩ Rimosso dal carrello', 'info');
+}
+
+/* Segna come preso/non preso nel CARRELLO (durante la spesa) */
+function pickProduct(smid, pid) {
+  const prod = state[smid]?.products.find(p => p.id === pid);
+  if (!prod) return;
+  prod.picked = !prod.picked;
+  saveState();
+  renderSpesa();
+  toast(prod.picked ? '✓ Preso!' : '↩ Rimesso', 'info');
+}
+
+function deleteProduct(smid, pid) {
+  const sm  = state[smid];
+  const idx = sm.products.findIndex(p => p.id === pid);
+  if (idx === -1) return;
+  const name = sm.products[idx].name;
+  sm.products.splice(idx, 1);
+  saveState();
+  render();
+  toast(`🗑 "${name}" eliminato`, 'bad');
+}
+
+/* ============================================================
+   SEARCH
+============================================================ */
+document.getElementById('search-input').addEventListener('input', function() {
+  searchQ = this.value;
+  render();
+});
+
+/* ============================================================
+   HIDE CHECKED TOGGLE
+============================================================ */
+document.querySelector('.toggle-pill').addEventListener('click', function() {
+  hideChecked = !hideChecked;
+  document.getElementById('t-track').classList.toggle('on', hideChecked);
+  render();
+});
+
+/* ============================================================
+   MODAL: NEW / RENAME SUPERMARKET
+============================================================ */
+let editingSmId = null;
+
+function openNewSm() {
+  editingSmId = null;
+  document.getElementById('msm-title').textContent = 'Nuovo supermercato';
+  document.getElementById('msm-input').value = '';
+  document.getElementById('msm-err').classList.remove('show');
+  openModal('modal-sm');
+  setTimeout(() => document.getElementById('msm-input').focus(), 120);
+}
+
+function openEditSm(smId) {
+  editingSmId = smId;
+  document.getElementById('msm-title').textContent = 'Rinomina supermercato';
+  document.getElementById('msm-input').value = state[smId].name;
+  document.getElementById('msm-err').classList.remove('show');
+  openModal('modal-sm');
+  setTimeout(() => { const i = document.getElementById('msm-input'); i.focus(); i.select(); }, 120);
+}
+
+document.getElementById('msm-ok').addEventListener('click', confirmSm);
+document.getElementById('msm-input').addEventListener('keydown', e => { if (e.key === 'Enter') confirmSm(); });
+
+function confirmSm() {
+  const inp  = document.getElementById('msm-input');
+  const errEl = document.getElementById('msm-err');
+  const name  = inp.value.trim();
+
+  if (!name) {
+    errEl.textContent = 'Il nome non può essere vuoto.';
+    errEl.classList.add('show'); inp.focus(); return;
+  }
+
+  const dup = Object.entries(state).some(([id, sm]) => {
+    if (editingSmId && id === editingSmId) return false;
+    return sm.name.toLowerCase() === name.toLowerCase();
+  });
+  if (dup) {
+    errEl.textContent = 'Esiste già un supermercato con questo nome.';
+    errEl.classList.add('show'); inp.focus(); return;
+  }
+
+  if (editingSmId) {
+    state[editingSmId].name = name;
+    saveState(); closeModal('modal-sm'); render();
+    toast(`✏ Rinominato in "${name}"`, 'info');
+  } else {
+    const newId = uid();
+    state[newId] = { name, brand: 'custom', collapsed: false, products: [] };
+    saveState(); closeModal('modal-sm'); render();
+    toast(`🏪 "${name}" aggiunto!`, 'ok');
+  }
+}
+
+/* ============================================================
+   MODAL: DELETE SUPERMARKET
+============================================================ */
+let deletingSmId = null;
+
+function openDelSm(smId) {
+  deletingSmId = smId;
+  const name = state[smId].name;
+  document.getElementById('mdel-text').innerHTML =
+    `Vuoi eliminare <strong>${esc(name)}</strong> e tutti i suoi prodotti? L'operazione non può essere annullata.`;
+  openModal('modal-delsm');
+}
+
+document.getElementById('mdel-ok').addEventListener('click', function() {
+  if (!deletingSmId) return;
+  const name = state[deletingSmId].name;
+  delete state[deletingSmId];
+  saveState(); closeModal('modal-delsm'); render();
+  toast(`🗑 "${name}" eliminato`, 'bad');
+  deletingSmId = null;
+});
+
+/* ============================================================
+   MODAL SYSTEM
+============================================================ */
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.m-overlay').forEach(ov => {
+  ov.addEventListener('click', function(e) {
+    if (e.target === this) closeModal(this.id);
+  });
+});
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', function() { closeModal(this.dataset.close); });
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.m-overlay.open').forEach(m => closeModal(m.id));
+  }
+});
+
+/* ============================================================
+   TOAST
+============================================================ */
+function toast(msg, type = 'ok') {
+  const container = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<div class="t-dot"></div><span>${esc(msg)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove());
+  }, 2600);
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+render();
+</script>
+
+</body>
+</html>
